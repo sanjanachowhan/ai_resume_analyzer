@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  resumes         Resume[]
+  jobDescriptions JobDescription[]
+  analyses        Analysis[]
+}
+
+model Resume {
+  id          String   @id @default(uuid())
+  userId      String
+  fileName    String
+  fileType    String // "pdf" | "docx"
+  fileSize    Int // bytes
+  rawText     String   @db.Text
+  contentHash String // SHA-256 of rawText, used to detect duplicates
+  parsedData  Json? // structured sections (name, skills, education...)
+  createdAt   DateTime @default(now())
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses Analysis[]
+
+  @@index([userId, createdAt])
+  @@index([userId, contentHash])
+}
+
+model JobDescription {
+  id          String   @id @default(uuid())
+  userId      String
+  title       String
+  company     String?
+  description String   @db.Text
+  parsedData  Json? // required/preferred skills, keywords, etc.
+  createdAt   DateTime @default(now())
+
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses Analysis[]
+
+  @@index([userId, createdAt])
+}
+
+model Analysis {
+  id               String @id @default(uuid())
+  userId           String
+  resumeId         String
+  jobDescriptionId String
+
+  overallScore        Int
+  skillScore          Int
+  keywordScore        Int
+  experienceScore     Int
+  educationScore      Int
+  responsibilityScore Int
+  softSkillScore      Int
+
+  matchedSkills Json
+  missingSkills Json
+  aiAnalysis    Json?
+  suggestions   Json
+  aiProvider    String? // "openai" | "gemini"; only set when the AI step succeeded
+  matchDetails  Json? // partial/additional skills, keywords, component breakdown, weights
+  aiMeta        Json? // provider, model, timing, token usage, warnings or the AI error
+
+  createdAt DateTime @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resume         Resume         @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescription JobDescription @relation(fields: [jobDescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([resumeId])
+  @@index([jobDescriptionId])
+}

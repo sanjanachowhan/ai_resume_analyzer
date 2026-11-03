@@ -1,0 +1,45 @@
+# A complete trial run on your own computer: the app + a PostgreSQL database.
+#   1. Create a file named .env.docker next to this one (see DEPLOYMENT.md, "Try it with Docker")
+#   2. docker compose --env-file .env.docker up --build
+#   3. Open http://localhost:5000
+#
+# This runs in "development" mode because it uses http://localhost. Real deployments use NODE_ENV=production behind https.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: resume_app
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env.docker}
+      POSTGRES_DB: resume_analyzer
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U resume_app -d resume_analyzer"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    environment:
+      NODE_ENV: development
+      PORT: "5000"
+      SERVE_CLIENT: "true"
+      CLIENT_URL: http://localhost:5000
+      DATABASE_URL: postgresql://resume_app:${DB_PASSWORD}@db:5432/resume_analyzer?schema=public
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env.docker}
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
+
+volumes:
+  pgdata:
